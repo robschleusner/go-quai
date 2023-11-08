@@ -127,6 +127,7 @@ type Service struct {
 
 	pongCh  chan struct{} // Pong notifications are fed into this channel
 	headSub event.Subscription
+	sideSub event.Subscription
 
 	transactionStatsQueue *StatsQueue
 	detailStatsQueue      *StatsQueue
@@ -309,10 +310,12 @@ func New(node *node.Node, backend backend, engine consensus.Engine, url string, 
 func (s *Service) Start() error {
 	// Subscribe to chain events to execute updates on
 	chainHeadCh := make(chan core.ChainHeadEvent, chainHeadChanSize)
+	chainSideCh := make(chan core.ChainSideEvent, chainSideChanSize)
 
 	s.headSub = s.backend.SubscribeChainHeadEvent(chainHeadCh)
+	s.sideSub = s.backend.SubscribeChainSideEvent(chainSideCh)
 
-	go s.loopBlocks(chainHeadCh)
+	go s.loopBlocks(chainHeadCh, chainSideCh)
 	go s.loopSender(s.initializeURLMap())
 
 	log.Info("Stats daemon started")
@@ -322,15 +325,16 @@ func (s *Service) Start() error {
 // Stop implements node.Lifecycle, terminating the monitoring and reporting daemon.
 func (s *Service) Stop() error {
 	s.headSub.Unsubscribe()
+	s.sideSub.Unsubscribe()
 	log.Info("Stats daemon stopped")
 	return nil
 }
 
-func (s *Service) loopBlocks(chainHeadCh chan core.ChainHeadEvent) {
+func (s *Service) loopBlocks(chainHeadCh chan core.ChainHeadEvent, chainSideCh chan core.ChainSideEvent) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Error("Stats process crashed", "error", r)
-			go s.loopBlocks(chainHeadCh)
+			go s.loopBlocks(chainHeadCh, chainSideCh)
 		}
 	}()
 
@@ -342,6 +346,12 @@ func (s *Service) loopBlocks(chainHeadCh chan core.ChainHeadEvent) {
 			case head := <-chainHeadCh:
 				// Directly handle the block
 				go s.handleBlock(head.Block)
+			// Notify of chain side events, but drop if too frequent
+			case sideEvent := <-chainSideCh:
+				go s.handleUncle(sideEvent.Blocks[0])
+			case <-s.sideSub.Err():
+				close(quitCh)
+				return
 			case <-s.headSub.Err():
 				close(quitCh)
 				return
@@ -511,6 +521,10 @@ func (s *Service) handleBlock(block *types.Block) {
 	// After handling a block and potentially adding to the queues, notify the sendStats goroutine
 	// that stats are ready to be sent
 	s.statsReadyCh <- struct{}{}
+}
+
+func (s *Service) handleUncle(block *types.Block) {
+	log.Info(" **************** Uncle received ****************** ")
 }
 
 func (s *Service) reportNodeStats(url string, mod int, authJwt string) error {
