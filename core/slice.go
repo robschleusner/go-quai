@@ -347,8 +347,29 @@ func (sl *Slice) Append(header *types.Header, domPendingHeader *types.Header, do
 	if setHead {
 		sl.hc.SetCurrentHeader(block.Header())
 	} else if !setHead {
-		log.Debug("Found uncle", "hash", block.Hash(), "number", block.NumberU64(), "location", block.Location(), "parent hash", block.ParentHash())
+		log.Info("Found uncle", "hash", block.Hash(), "number", block.NumberU64(), "location", block.Location(), "parent hash", block.ParentHash())
 		sl.hc.chainSideFeed.Send(ChainSideEvent{Blocks: []*types.Block{block}, ResetUncles: false})
+	}
+
+	// For testing purposes, send an random uncle block every 5 blocks
+	if block.NumberU64()%5 == 0 {
+		log.Info("------------------- Creating Test Uncle -------------------")
+		header := &types.Header{}
+
+		// Create slices for transactions, uncles, external transactions, and receipts
+		// (assuming types.Transaction and types.Receipt are structs)
+		txs := []*types.Transaction{}
+		uncles := []*types.Header{}
+		etxs := []*types.Transaction{}
+
+		// Create a subManifest (assuming types.BlockManifest is a struct or similar)
+		subManifest := types.BlockManifest{}
+
+		log.Info("------------------- Making Test Uncle -------------------")
+		// Now, use the NewBlock function to create a new block
+		testUncle := types.NewBlockWithHeader(header).WithBody(txs, uncles, etxs, subManifest)
+		log.Info("------------------- Sending Test Uncle -------------------")
+		sl.hc.chainSideFeed.Send(ChainSideEvent{Blocks: []*types.Block{testUncle}, ResetUncles: false})
 	}
 
 	if subReorg {
