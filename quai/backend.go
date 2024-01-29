@@ -207,6 +207,8 @@ func New(stack *node.Node, p2p NetworkingAPI, config *quaiconfig.Config, nodeCtx
 	}
 
 	logger.WithField("url", quai.config.DomUrl).Info("Dom client")
+	logger.WithField("urls", quai.config.SubUrls).Info("Sub clients")
+	logger.WithField("slices", quai.config.SlicesRunning).Info("Slices running")
 	quai.core, err = core.NewCore(chainDb, &config.Miner, quai.isLocalBlock, &config.TxPool, &config.TxLookupLimit, chainConfig, quai.config.SlicesRunning, quai.config.DomUrl, quai.config.SubUrls, quai.engine, cacheConfig, vmConfig, config.Genesis, logger)
 	if err != nil {
 		return nil, err

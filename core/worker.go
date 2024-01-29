@@ -10,6 +10,9 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set"
+	lru "github.com/hashicorp/golang-lru"
+	expireLru "github.com/hnlq715/golang-lru"
+
 	"github.com/dominant-strategies/go-quai/common"
 	"github.com/dominant-strategies/go-quai/common/hexutil"
 	"github.com/dominant-strategies/go-quai/consensus"
@@ -22,8 +25,6 @@ import (
 	"github.com/dominant-strategies/go-quai/log"
 	"github.com/dominant-strategies/go-quai/params"
 	"github.com/dominant-strategies/go-quai/trie"
-	lru "github.com/hashicorp/golang-lru"
-	expireLru "github.com/hnlq715/golang-lru"
 )
 
 const (
@@ -587,7 +588,12 @@ func (w *worker) makeEnv(parent *types.Block, header *types.Header, coinbase com
 		return nil, err
 	}
 
-	etxRLimit := len(parent.Transactions()) / params.ETXRegionMaxFraction
+	etxRLimit := 0
+
+	if params.ETXRegionMaxFraction > 0 {
+		etxRLimit = len(parent.Transactions()) / params.GetETXRegionMaxFraction()
+	}
+
 	if etxRLimit < params.ETXRLimitMin {
 		etxRLimit = params.ETXRLimitMin
 	}

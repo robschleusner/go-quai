@@ -80,7 +80,7 @@ func NewBodyDb(db ethdb.Database, engine consensus.Engine, hc *HeaderChain, chai
 	// only start the state processor in zone
 	if nodeCtx == common.ZONE_CTX && bc.ProcessingState() {
 		bc.processor = NewStateProcessor(chainConfig, hc, engine, vmConfig, cacheConfig, txLookupLimit)
-		vm.InitializePrecompiles(chainConfig.Location)
+		// vm.InitializePrecompiles(chainConfig.Location)
 	}
 
 	return bc, nil
