@@ -762,13 +762,7 @@ func setHTTP(cfg *node.Config, nodeLocation common.Location) {
 		}
 	}
 
-	if nodeLocation == nil {
-		cfg.HTTPPort = 9001
-	} else if len(nodeLocation) == 1 {
-		cfg.HTTPPort = 9002
-	} else if len(nodeLocation) == 2 {
-		cfg.HTTPPort = 9003
-	}
+	cfg.HTTPPort = locationToPort(nodeLocation, "http")
 
 	if viper.IsSet(HTTPCORSDomainFlag.Name) {
 		cfg.HTTPCors = SplitAndTrim(viper.GetString(HTTPCORSDomainFlag.Name))
@@ -787,6 +781,36 @@ func setHTTP(cfg *node.Config, nodeLocation common.Location) {
 	}
 }
 
+func locationToPort(nodeLocation common.Location, portType string) int {
+	toggle := 0
+	startPort := 8000
+
+	if portType == "http" {
+		toggle = 500
+	}
+
+	if nodeLocation.Context() == common.PRIME_CTX {
+		return startPort + toggle
+	}
+
+	startPort += 1
+
+	if nodeLocation.Context() == common.REGION_CTX {
+		// Start Port + 1 port for prime + region index
+		return startPort + nodeLocation.Region() + toggle
+	}
+
+	startPort += 16
+
+	if nodeLocation.Context() == common.ZONE_CTX {
+		// Start Port + 1 port for prime + 16 + zone index
+		return startPort + 16*nodeLocation.Region() + nodeLocation.Zone() + toggle
+	}
+
+	log.Global.WithField("context", nodeLocation.Context()).Fatalf("Invalid context for location")
+	return -1
+}
+
 // setWS creates the WebSocket RPC listener interface string from the set
 // command line flags, returning empty if the HTTP endpoint is disabled.
 func setWS(cfg *node.Config, nodeLocation common.Location) {
@@ -796,13 +820,8 @@ func setWS(cfg *node.Config, nodeLocation common.Location) {
 			cfg.WSHost = viper.GetString(WSListenAddrFlag.Name)
 		}
 	}
-	if nodeLocation == nil {
-		cfg.WSPort = 8001
-	} else if len(nodeLocation) == 1 {
-		cfg.WSPort = 8002
-	} else if len(nodeLocation) == 2 {
-		cfg.WSPort = 8003
-	}
+
+	cfg.WSPort = locationToPort(nodeLocation, "ws")
 
 	if viper.IsSet(WSAllowedOriginsFlag.Name) {
 		cfg.WSOrigins = SplitAndTrim(viper.GetString(WSAllowedOriginsFlag.Name))
@@ -822,10 +841,12 @@ func setDomUrl(cfg *quaiconfig.Config, nodeLocation common.Location, logger *log
 	// only set the dom url if the node is not prime
 	if nodeLocation != nil {
 		if len(nodeLocation) == 1 {
-			cfg.DomUrl = "ws://127.0.0.1:8001"
+			cfg.DomUrl = fmt.Sprintf("ws://127.0.0.1:%d", locationToPort(common.Location{}, "ws"))
 		} else if len(nodeLocation) == 2 {
-			cfg.DomUrl = "ws://127.0.0.1:8002"
+			cfg.DomUrl = fmt.Sprintf("ws://127.0.0.1:%d", locationToPort(common.Location{byte(nodeLocation.Region())}, "ws"))
 		}
+	} else {
+		cfg.DomUrl = ""
 	}
 	logger.WithFields(log.Fields{
 		"Location": nodeLocation,
@@ -838,10 +859,20 @@ func setSubUrls(cfg *quaiconfig.Config, nodeLocation common.Location) {
 	// only set the sub urls if its not the zone
 	if len(nodeLocation) != 2 {
 		if nodeLocation == nil {
-			cfg.SubUrls = []string{"ws://127.0.0.1:8002"}
+			suburls := []string{}
+			for i := 0; i < common.NumRegionsInPrime; i++ {
+				suburls = append(suburls, fmt.Sprintf("ws://127.0.0.1:%d", locationToPort(common.Location{byte(i)}, "ws")))
+			}
+			cfg.SubUrls = suburls
 		} else if len(nodeLocation) == 1 {
-			cfg.SubUrls = []string{"ws://127.0.0.1:8003"}
+			suburls := []string{}
+			for i := 0; i < common.NumZonesInRegion; i++ {
+				suburls = append(suburls, fmt.Sprintf("ws://127.0.0.1:%d", locationToPort(common.Location{byte(nodeLocation.Region()), byte(i)}, "ws")))
+			}
+			cfg.SubUrls = suburls
 		}
+	} else {
+		cfg.SubUrls = []string{}
 	}
 }
 

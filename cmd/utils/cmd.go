@@ -53,10 +53,14 @@ func StartQuaiBackend(ctx context.Context, p2p quai.NetworkingAPI, logLevel stri
 		}()
 	}
 
-	// Start nodes in separate goroutines
+	// Start nodes based on the number of regions and zones
 	startNode("nodelogs/prime.log", nil)
-	startNode("nodelogs/region-0.log", common.Location{0})
-	startNode("nodelogs/zone-0-0.log", common.Location{0, 0})
+	for i := 0; i < common.NumRegionsInPrime; i++ {
+		startNode(fmt.Sprintf("nodelogs/region-%d.log", i), common.Location{uint8(i)})
+		for j := 0; j < common.NumZonesInRegion; j++ {
+			startNode(fmt.Sprintf("nodelogs/zone-%d-%d.log", i, j), common.Location{uint8(i), uint8(j)})
+		}
+	}
 
 	return quaiBackend, nil
 }

@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	lru "github.com/hashicorp/golang-lru"
+
 	"github.com/dominant-strategies/go-quai/common"
 	"github.com/dominant-strategies/go-quai/consensus"
 	"github.com/dominant-strategies/go-quai/core/rawdb"
@@ -22,7 +24,6 @@ import (
 	"github.com/dominant-strategies/go-quai/params"
 	"github.com/dominant-strategies/go-quai/quaiclient"
 	"github.com/dominant-strategies/go-quai/trie"
-	lru "github.com/hashicorp/golang-lru"
 )
 
 const (
@@ -118,11 +119,13 @@ func NewSlice(db ethdb.Database, config *Config, txConfig *TxPoolConfig, txLooku
 	sl.inboundEtxsCache, _ = lru.New(c_inboundEtxCacheSize)
 
 	// only set the subClients if the chain is not Zone
-	sl.subClients = make([]*quaiclient.Client, 3)
+	sl.subClients = make([]*quaiclient.Client, common.Width)
 	if nodeCtx != common.ZONE_CTX {
 		go func() {
 			sl.subClients = makeSubClients(subClientUrls, sl.logger)
 		}()
+	} else {
+		sl.subClients = make([]*quaiclient.Client, 0)
 	}
 
 	// only set domClient if the chain is not Prime.
@@ -553,13 +556,16 @@ func (sl *Slice) UpdateDom(oldTerminus common.Hash, pendingHeader types.PendingH
 	}
 }
 
-func (sl *Slice) randomRelayArray() [3]int {
+func (sl *Slice) randomRelayArray() []int {
 	rand.Seed(time.Now().UnixNano())
-	nums := [3]int{0, 1, 2}
-	for i := len(nums) - 1; i > 0; i-- {
-		j := rand.Intn(i + 1)
-		nums[i], nums[j] = nums[j], nums[i]
+
+	nums := make([]int, common.Width)
+	for i := 0; i < common.Width; i++ {
+		nums[i] = i
 	}
+
+	rand.Shuffle(len(nums), func(i, j int) { nums[i], nums[j] = nums[j], nums[i] })
+
 	return nums
 }
 
@@ -1363,7 +1369,7 @@ func makeDomClient(domurl string, logger *log.Logger) *quaiclient.Client {
 
 // MakeSubClients creates the quaiclient for the given suburls
 func makeSubClients(suburls []string, logger *log.Logger) []*quaiclient.Client {
-	subClients := make([]*quaiclient.Client, 3)
+	subClients := make([]*quaiclient.Client, common.Width)
 	for i, suburl := range suburls {
 		if suburl != "" {
 			subClient, err := quaiclient.Dial(suburl, logger)

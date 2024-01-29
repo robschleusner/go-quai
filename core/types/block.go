@@ -1210,10 +1210,14 @@ type Termini struct {
 }
 
 func (t Termini) String() string {
-	return fmt.Sprintf("{DomTermini: [%v, %v, %v], SubTermini: [%v, %v, %v]}",
-		t.DomTerminiAtIndex(0), t.DomTerminiAtIndex(1), t.DomTerminiAtIndex(2),
-		t.SubTerminiAtIndex(0), t.SubTerminiAtIndex(1), t.SubTerminiAtIndex(2),
-	)
+	var domTermini, subTermini []string
+
+	for i := 0; i < common.Width; i++ {
+		domTermini = append(domTermini, t.DomTerminiAtIndex(i).String())
+		subTermini = append(subTermini, t.SubTerminiAtIndex(i).String())
+	}
+
+	return fmt.Sprintf("{DomTermini: %v, SubTermini: %v}", domTermini, subTermini)
 }
 
 func CopyTermini(termini Termini) Termini {
@@ -1229,8 +1233,8 @@ func CopyTermini(termini Termini) Termini {
 
 func EmptyTermini() Termini {
 	termini := Termini{}
-	termini.subTermini = make([]common.Hash, common.HierarchyDepth)
-	termini.domTermini = make([]common.Hash, common.HierarchyDepth)
+	termini.subTermini = make([]common.Hash, common.Width)
+	termini.domTermini = make([]common.Hash, common.Width)
 	return termini
 }
 
@@ -1259,6 +1263,10 @@ func (t *Termini) SetDomTerminiAtIndex(val common.Hash, index int) {
 }
 
 func (t *Termini) SetSubTermini(subTermini []common.Hash) {
+	if len(subTermini) != common.Width {
+		log.Global.Error("Set SubTermini to invalid length")
+		return
+	}
 	t.subTermini = make([]common.Hash, len(subTermini))
 	for i := 0; i < len(subTermini); i++ {
 		t.subTermini[i] = subTermini[i]
@@ -1266,6 +1274,10 @@ func (t *Termini) SetSubTermini(subTermini []common.Hash) {
 }
 
 func (t *Termini) SetDomTermini(domTermini []common.Hash) {
+	if len(domTermini) != common.Width {
+		log.Global.Error("Set DomTermini to invalid length")
+		return
+	}
 	t.domTermini = make([]common.Hash, len(domTermini))
 	for i := 0; i < len(domTermini); i++ {
 		t.domTermini[i] = domTermini[i]
@@ -1280,11 +1292,11 @@ func (t *Termini) IsValid() bool {
 	if t == nil {
 		return false
 	}
-	if len(t.subTermini) != common.NumZonesInRegion {
+	if len(t.subTermini) != common.Width {
 		return false
 	}
 
-	if len(t.domTermini) != common.NumZonesInRegion {
+	if len(t.domTermini) != common.Width {
 		return false
 	}
 

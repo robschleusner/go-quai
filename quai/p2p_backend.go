@@ -17,11 +17,11 @@ type QuaiBackend struct {
 
 // Create a new instance of the QuaiBackend consensus service
 func NewQuaiBackend() (*QuaiBackend, error) {
-	zoneBackends := make([][]*quaiapi.Backend, 1)
-	for i := 0; i < 1; i++ {
-		zoneBackends[i] = make([]*quaiapi.Backend, 1)
+	zoneBackends := make([][]*quaiapi.Backend, common.NumRegionsInPrime)
+	for i := 0; i < common.NumRegionsInPrime; i++ {
+		zoneBackends[i] = make([]*quaiapi.Backend, common.NumZonesInRegion)
 	}
-	return &QuaiBackend{regionApiBackends: make([]*quaiapi.Backend, 1), zoneApiBackends: zoneBackends}, nil
+	return &QuaiBackend{regionApiBackends: make([]*quaiapi.Backend, common.NumRegionsInPrime), zoneApiBackends: zoneBackends}, nil
 }
 
 func (qbe *QuaiBackend) SetApiBackend(apiBackend quaiapi.Backend, location common.Location) {

@@ -235,7 +235,12 @@ func (p *StateProcessor) Process(block *types.Block, etxSet types.EtxSet) (types
 	time3 := common.PrettyDuration(time.Since(start))
 
 	// Iterate over and process the individual transactions.
-	etxRLimit := len(parent.Transactions()) / params.ETXRegionMaxFraction
+	etxRLimit := 0
+
+	if params.ETXRegionMaxFraction > 0 {
+		etxRLimit = len(parent.Transactions()) / params.GetETXRegionMaxFraction()
+	}
+
 	if etxRLimit < params.ETXRLimitMin {
 		etxRLimit = params.ETXRLimitMin
 	}

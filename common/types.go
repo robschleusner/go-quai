@@ -46,8 +46,9 @@ const (
 	ZONE_CTX   = 2
 
 	// Depth of the hierarchy of chains
-	NumRegionsInPrime = 3
-	NumZonesInRegion  = 3
+	Width             = 1 // TODO: Remove width. Need it for now for termini to work. Protocol does not yet support NumRegionsInPrime != NumZonesInRegion
+	NumRegionsInPrime = Width
+	NumZonesInRegion  = Width
 	HierarchyDepth    = 3
 	NumChains         = 1 + NumRegionsInPrime*(1+NumZonesInRegion) // Prime + R regions + RxZ zones
 )
@@ -440,6 +441,32 @@ func (loc Location) Name() string {
 		regionName = "paxos"
 	case 2:
 		regionName = "hydra"
+	case 3:
+		regionName = "rhodes"
+	case 4:
+		regionName = "troy"
+	case 5:
+		regionName = "malta"
+	case 6:
+		regionName = "crete"
+	case 7:
+		regionName = "sparta"
+	case 8:
+		regionName = "titan"
+	case 9:
+		regionName = "apollo"
+	case 10:
+		regionName = "lipsi"
+	case 11:
+		regionName = "aegina"
+	case 12:
+		regionName = "nikus"
+	case 13:
+		regionName = "kea"
+	case 14:
+		regionName = "chronos"
+	case 15:
+		regionName = "antikytheria"
 	default:
 		regionName = "unknownregion"
 	}
