@@ -1,6 +1,8 @@
 package pb
 
 import (
+	"math/big"
+
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 
@@ -28,11 +30,19 @@ func MarshalProtoMessage(pbMsg proto.Message) ([]byte, error) {
 
 // EncodeRequestMessage creates a marshaled protobuf message for a Quai Request.
 // Returns the serialized protobuf message.
-func EncodeQuaiRequest(id uint32, location common.Location, hash common.Hash, datatype interface{}) ([]byte, error) {
+func EncodeQuaiRequest(id uint32, location common.Location, data interface{}, datatype interface{}) ([]byte, error) {
 	reqMsg := QuaiRequestMessage{
 		Id:       id,
 		Location: location.ProtoEncode(),
-		Hash:     hash.ProtoEncode(),
+	}
+
+	switch d := data.(type) {
+	case common.Hash:
+		reqMsg.Data = &QuaiRequestMessage_Hash{Hash: d.ProtoEncode()}
+	case big.Int:
+		reqMsg.Data = &QuaiRequestMessage_Number{Number: d.Bytes()}
+	default:
+		return nil, errors.Errorf("unsupported request input data field type: %T", data)
 	}
 
 	switch datatype.(type) {
@@ -42,6 +52,8 @@ func EncodeQuaiRequest(id uint32, location common.Location, hash common.Hash, da
 		reqMsg.Request = &QuaiRequestMessage_Header{}
 	case *types.Transaction:
 		reqMsg.Request = &QuaiRequestMessage_Transaction{}
+	case common.Hash:
+		reqMsg.Request = &QuaiRequestMessage_BlockHash{}
 	default:
 		return nil, errors.Errorf("unsupported request data type: %T", datatype)
 	}
@@ -56,30 +68,43 @@ func EncodeQuaiRequest(id uint32, location common.Location, hash common.Hash, da
 //  3. The location
 //  4. The hash
 //  5. An error
-func DecodeQuaiRequest(data []byte) (uint32, interface{}, common.Location, common.Hash, error) {
+func DecodeQuaiRequest(data []byte) (uint32, interface{}, common.Location, interface{}, error) {
 	var reqMsg QuaiRequestMessage
 	err := UnmarshalProtoMessage(data, &reqMsg)
 	if err != nil {
-		return 0, nil, common.Location{}, common.Hash{}, err
+		return 0, nil, common.Location{}, nil, err
 	}
 
 	location := common.Location{}
 	location.ProtoDecode(reqMsg.Location)
-	hash := common.Hash{}
-	hash.ProtoDecode(reqMsg.Hash)
 
-	id := reqMsg.Id
-
-	switch reqMsg.Request.(type) {
-	case *QuaiRequestMessage_Block:
-		return id, &types.Block{}, location, hash, nil
-	case *QuaiRequestMessage_Header:
-		return id, &types.Header{}, location, hash, nil
-	case *QuaiRequestMessage_Transaction:
-		return id, &types.Transaction{}, location, hash, nil
-	default:
-		return 0, nil, common.Location{}, common.Hash{}, errors.Errorf("unsupported request type: %T", reqMsg.Request)
+	var reqData interface{}
+	switch d := reqMsg.Data.(type) {
+	case *QuaiRequestMessage_Hash:
+		hash := common.Hash{}
+		hash.ProtoDecode(d.Hash)
+		reqData = hash
+	case *QuaiRequestMessage_Number:
+		reqData = new(big.Int).SetBytes(d.Number)
 	}
+
+	var reqType interface{}
+	switch t := reqMsg.Request.(type) {
+	case *QuaiRequestMessage_Block:
+		reqType = t.Block
+	case *QuaiRequestMessage_Header:
+		reqType = t.Header
+	case *QuaiRequestMessage_Transaction:
+		reqType = t.Transaction
+	case *QuaiRequestMessage_BlockHash:
+		blockHash := common.Hash{}
+		blockHash.ProtoDecode(t.BlockHash)
+		reqType = blockHash
+	default:
+		return reqMsg.Id, nil, common.Location{}, common.Hash{}, errors.Errorf("unsupported request type: %T", reqMsg.Request)
+	}
+
+	return reqMsg.Id, reqData, location, reqType, nil
 }
 
 // EncodeResponse creates a marshaled protobuf message for a Quai Response.
@@ -109,7 +134,8 @@ func EncodeQuaiResponse(id uint32, data interface{}) ([]byte, error) {
 			return nil, err
 		}
 		respMsg.Response = &QuaiResponseMessage_Transaction{Transaction: protoTransaction}
-
+	case common.Hash:
+		respMsg.Response = &QuaiResponseMessage_BlockHash{BlockHash: data.ProtoEncode()}
 	default:
 		return nil, errors.Errorf("unsupported response data type: %T", data)
 	}
@@ -159,6 +185,11 @@ func DecodeQuaiResponse(data []byte) (uint32, interface{}, error) {
 			return id, nil, err
 		}
 		return id, transaction, nil
+	case *QuaiResponseMessage_BlockHash:
+		blockHash := respMsg.GetBlockHash()
+		hash := common.Hash{}
+		hash.ProtoDecode(blockHash)
+		return id, hash, nil
 	default:
 		return id, nil, errors.Errorf("unsupported response type: %T", respMsg.Response)
 	}
@@ -188,6 +219,10 @@ func ConvertAndMarshal(data interface{}) ([]byte, error) {
 			return nil, err
 		}
 		return MarshalProtoMessage(protoTransaction)
+	case common.Hash:
+		log.Global.Tracef("marshalling hash: %+v", data)
+		protoHash := data.ProtoEncode()
+		return MarshalProtoMessage(protoHash)
 	default:
 		return nil, errors.New("unsupported data type")
 	}
@@ -237,6 +272,16 @@ func UnmarshalAndConvert(data []byte, dataPtr *interface{}, datatype interface{}
 			return err
 		}
 		*dataPtr = *transaction
+		return nil
+	case common.Hash:
+		protoHash := &common.ProtoHash{}
+		err := UnmarshalProtoMessage(data, protoHash)
+		if err != nil {
+			return err
+		}
+		hash := common.Hash{}
+		hash.ProtoDecode(protoHash)
+		*dataPtr = hash
 		return nil
 	default:
 		return errors.New("unsupported data type")

@@ -1,6 +1,8 @@
 package quai
 
 import (
+	"math/big"
+
 	"github.com/dominant-strategies/go-quai/common"
 	"github.com/dominant-strategies/go-quai/core/types"
 	"github.com/dominant-strategies/go-quai/internal/quaiapi"
@@ -87,5 +89,9 @@ func (qbe *QuaiBackend) GetHeight(location common.Location) uint64 {
 }
 
 func (qbe *QuaiBackend) LookupBlock(hash common.Hash, location common.Location) *types.Block {
+	panic("todo")
+}
+
+func (qbe *QuaiBackend) LookupBlockHashByNumber(number *big.Int, location common.Location) *common.Hash {
 	panic("todo")
 }
