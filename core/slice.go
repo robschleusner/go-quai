@@ -1307,9 +1307,6 @@ func (sl *Slice) combinePendingHeader(header *types.Header, slPendingHeader *typ
 func (sl *Slice) NewGenesisPendingHeader(domPendingHeader *types.Header) {
 	nodeCtx := sl.NodeLocation().Context()
 
-	if nodeCtx == common.PRIME_CTX {
-		time.Sleep(10 * time.Second)
-	}
 	genesisHash := sl.config.GenesisHash
 	// Upate the local pending header
 	localPendingHeader, err := sl.miner.worker.GeneratePendingHeader(sl.hc.GetBlockByHash(genesisHash), false)
@@ -1325,12 +1322,25 @@ func (sl *Slice) NewGenesisPendingHeader(domPendingHeader *types.Header) {
 	}
 
 	if nodeCtx != common.ZONE_CTX {
-		for _, client := range sl.subClients {
-			if client != nil {
-				client.NewGenesisPendingHeader(context.Background(), domPendingHeader)
-				if err != nil {
+		for i := 0; i < len(sl.subClients); i++ {
+			retryAttempts := 30
+			for r := 0; r < retryAttempts; r++ {
+				client := sl.subClients[i]
+				if client != nil {
+					err = client.NewGenesisPendingHeader(context.Background(), domPendingHeader)
+					if err == nil {
+						break
+					}
+				}
+				if r == retryAttempts-1 {
+					sl.logger.WithField("err", err).Fatal("Error sending genesis pending header to sub")
 					return
 				}
+				sl.logger.WithFields(log.Fields{
+					"attempts": r,
+					"delay":    1,
+				}).Warn("Attempting to send genesis pending header to sub")
+				time.Sleep(1 * time.Second)
 			}
 		}
 	}
